@@ -2,11 +2,10 @@
   "name": "redis-copy",
   "version": "1.0.0",
   "description": "Redis copy for large datasets",
-  "main": "index.js",
+  "main": "lib/copy.js",
   "scripts": {
-    "lint": "tslint --project tsconfig.json",
-    "build": "tsc",
-    "dump": "npx ts-node src/dump.ts"
+    "lint": "npx tslint --project tsconfig.json",
+    "build": "npx tsc"
   },
   "author": "Kirill Pertsev <kika@kikap.com>",
   "license": "UNLICENSED",
