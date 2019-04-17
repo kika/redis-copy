@@ -29,8 +29,9 @@ async function copy_data(from: redis.IHandyRedis, to: redis.IHandyRedis) {
     let ttlCount = 0
     let ttlErrCount = 0
     const stime = Date.now()
+    let message = ""
 
-//    const totalKeys = await from.dbsize()
+    const totalKeys = await from.dbsize()
 
     do {
         const result = await from.scan(cursor, ['COUNT', batch_size])
@@ -42,10 +43,12 @@ async function copy_data(from: redis.IHandyRedis, to: redis.IHandyRedis) {
                 dumpCount++
                 from.pttl(key).then((ttl) => {
                     ttlCount++
+                    // if the TTL is -1 then there's no TTL, which means 0
+                    // So in Redis universe -1 == 0 :-)
                     const newttl = ttl === -1 ? 0 : ttl
-                    to.restore(key, newttl, dump).then((_) => {
+                    to.restore(key, newttl, dump)
+                    .then((_) => {
                         restoredCount++
-                        willFinish()
                     }).catch((err) => {
                         if(ignore_dupes && err.code === 'BUSYKEY') {
                             restoredCount++
@@ -53,24 +56,27 @@ async function copy_data(from: redis.IHandyRedis, to: redis.IHandyRedis) {
                             restoreErrCount++
                             console.error(`RESTORE error: ${key}:${ttl} => ${err}`)
                         }
-                        willFinish()
                     })
-                    willFinish()
+                    .then(() => {
+                        message = `\x1b[${message.length}D${keyCount} keys`
+                        process.stdout.write(message)
+                    })
+                    .catch() // Dummy catch to satisfy TS compiler
                 }).catch((err) => {
                     ttlErrCount++
                     console.error(`PTTL error: ${key} => ${err}`)
-                    willFinish()
                 })
             }).catch((err) => {
                 dumpErrCount++
                 console.error(`DUMP error: ${key} => ${err}`)
-                willFinish()
             })
         })
     } while(cursor !== 0)
+    process.stdout.write('\n')
+    return waitFinish()
 
-    function willFinish() {
-        if(dumpCount + dumpErrCount === keyCount &&
+    async function waitFinish() {
+        if(keyCount === totalKeys && dumpCount + dumpErrCount === keyCount &&
            restoredCount + restoreErrCount === ttlCount &&
            ttlCount + ttlErrCount === dumpCount) {
                 console.log(`Total keys: ${keyCount}`)
@@ -79,11 +85,10 @@ async function copy_data(from: redis.IHandyRedis, to: redis.IHandyRedis) {
                 console.log(`Ttl errors: ${ttlErrCount}`)
                 const ttime = Date.now() - stime
                 console.log(`Avg speed: ${keyCount * 1000 / ttime} keys/sec`)
-                process.exit(
-                    dumpErrCount === 0 &&
-                    restoreErrCount === 0 &&
-                    ttlErrCount === 0 ? 0 : -1
-                )
-           }
+                await from.quit()
+                await to.quit()
+        } else {
+            setTimeout(waitFinish, 0)
+        }
     }
 }
