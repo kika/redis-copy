@@ -10,7 +10,7 @@ if(!redis_url || redis_url.length === 0 || !pattern || pattern.length === 0) {
 const red = redis.createHandyClient(redis_url, {return_buffers: true})
 
 const batch_size = 10000
-const dry_run = true
+const dry_run = false
 
 list_keys(red)
     .finally(() => red.quit())
@@ -33,14 +33,16 @@ async function list_keys(rediz: redis.IHandyRedis) {
         )
         cursor = parseInt(result[0])
         const keys = result[1] as [string]
-        keyCount += keys.length
-        if(dry_run) {
-            delCount += keys.length
-        } else {
-            delCount += await rediz.del.apply(keys)
+        if(keys.length > 0) {
+            keyCount += keys.length
+            if(dry_run) {
+                delCount += keys.length
+            } else {
+                delCount += await rediz.del.apply(null, keys)
+            }
+            message = `\x1b[${message.length}D${delCount} keys deleted`
+            process.stdout.write(message)
         }
-        message = `\x1b[${message.length}D${delCount} keys deleted`
-        process.stdout.write(message)
     } while(cursor !== 0)
     process.stdout.write('\n')
     waitFinish()
