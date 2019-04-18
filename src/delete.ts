@@ -39,7 +39,7 @@ async function list_keys(rediz: redis.IHandyRedis) {
         } else {
             delCount += await rediz.del.apply(keys)
         }
-        message = `\x1b[${message.length}B${delCount} keys deleted`
+        message = `\x1b[${message.length}D${delCount} keys deleted`
         process.stdout.write(message)
     } while(cursor !== 0)
     process.stdout.write('\n')
