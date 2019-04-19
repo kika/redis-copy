@@ -12,7 +12,7 @@ const redis_from = redis.createHandyClient(redis_url_from, {return_buffers: true
 const redis_to = redis.createHandyClient(redis_url_to, {return_buffers: true})
 
 const batch_size = 10000
-const ignore_dupes = false
+const ignore_dupes = true
 
 type ScanResult = [number, string[]]
 
@@ -30,10 +30,13 @@ async function copy_data(from: redis.IHandyRedis, to: redis.IHandyRedis) {
     let restoreErrCount = 0
     let ttlCount = 0
     let ttlErrCount = 0
+    let skippedCount = 0
+
     const stime = Date.now()
     let message = ""
 
     const totalKeys = await from.dbsize()
+    console.log(`Total keys: ${totalKeys}`)
 
     do {
         const result: ScanResult = await from.scan(cursor, ['COUNT', batch_size])
@@ -66,6 +69,8 @@ async function copy_data(from: redis.IHandyRedis, to: redis.IHandyRedis) {
                             process.stdout.write(message)
                         })
                         .catch() // Dummy catch to satisfy TS compiler
+                    } else {
+                        skippedCount++
                     }
                 }).catch((err) => {
                     ttlErrCount++
@@ -83,11 +88,12 @@ async function copy_data(from: redis.IHandyRedis, to: redis.IHandyRedis) {
     async function waitFinish() {
         if(keyCount === totalKeys && dumpCount + dumpErrCount === keyCount &&
            restoredCount + restoreErrCount === ttlCount &&
-           ttlCount + ttlErrCount === dumpCount) {
+           ttlCount + ttlErrCount + skippedCount === dumpCount) {
                 console.log(`Total keys: ${keyCount}`)
                 console.log(`Dump errors: ${dumpErrCount}`)
                 console.log(`Restore errors: ${restoreErrCount}`)
                 console.log(`Ttl errors: ${ttlErrCount}`)
+                console.log(`Skipped keys: ${skippedCount}`)
                 const ttime = Date.now() - stime
                 console.log(`Avg speed: ${keyCount * 1000 / ttime} keys/sec`)
                 await from.quit()
