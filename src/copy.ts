@@ -86,9 +86,9 @@ async function copy_data(from: redis.IHandyRedis, to: redis.IHandyRedis) {
     return waitFinish()
 
     async function waitFinish() {
-        if(keyCount === totalKeys && dumpCount + dumpErrCount === keyCount &&
-           restoredCount + restoreErrCount === ttlCount &&
-           ttlCount + ttlErrCount + skippedCount === dumpCount) {
+        if(keyCount >= totalKeys && dumpCount + dumpErrCount >= keyCount &&
+           restoredCount + restoreErrCount >= ttlCount &&
+           ttlCount + ttlErrCount + skippedCount >= dumpCount) {
                 console.log(`Total keys: ${keyCount}`)
                 console.log(`Dump errors: ${dumpErrCount}`)
                 console.log(`Restore errors: ${restoreErrCount}`)
