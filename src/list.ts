@@ -15,6 +15,8 @@ list_keys(red)
     .then(() => console.error("Done"))
     .catch((err) => console.error(err))
 
+type ScanResult = [number, string[]]
+
 async function list_keys(rediz: redis.IHandyRedis) {
     
     let cursor = 0
@@ -26,9 +28,9 @@ async function list_keys(rediz: redis.IHandyRedis) {
 
     console.log(`"Key", "TTL (-1 no ttl, -2 error)"`)
     do {
-        const result = await rediz.scan(cursor, ['COUNT', batch_size])
-        cursor = parseInt(result[0])
-        const keys = result[1] as [string]
+        const result: ScanResult = await rediz.scan(cursor, ['COUNT', batch_size])
+        cursor = result[0]
+        const keys = result[1]
         const proms: Promise<number>[] = []
         keys.forEach(async (key) => {
             keyCount++
