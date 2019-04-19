@@ -14,6 +14,8 @@ const redis_to = redis.createHandyClient(redis_url_to, {return_buffers: true})
 const batch_size = 10000
 const ignore_dupes = false
 
+type ScanResult = [number, string[]]
+
 copy_data(redis_from, redis_to)
     .then(() => console.log("Done"))
     .catch((err) => console.error(err))
@@ -34,9 +36,9 @@ async function copy_data(from: redis.IHandyRedis, to: redis.IHandyRedis) {
     const totalKeys = await from.dbsize()
 
     do {
-        const result = await from.scan(cursor, ['COUNT', batch_size])
-        cursor = parseInt(result[0])
-        const keys = result[1] as [string]
+        const result: ScanResult = await from.scan(cursor, ['COUNT', batch_size])
+        cursor = result[0]
+        const keys = result[1]
         keys.forEach((key) => {
             keyCount++
             from.dump(key).then((dump) => {
@@ -46,22 +48,25 @@ async function copy_data(from: redis.IHandyRedis, to: redis.IHandyRedis) {
                     // if the TTL is -1 then there's no TTL, which means 0
                     // So in Redis universe -1 == 0 :-)
                     const newttl = ttl === -1 ? 0 : ttl
-                    to.restore(key, newttl, dump)
-                    .then((_) => {
-                        restoredCount++
-                    }).catch((err) => {
-                        if(ignore_dupes && err.code === 'BUSYKEY') {
+                    // Handle other negative values and skip restore
+                    if(newttl >= 0) {
+                        to.restore(key, newttl, dump)
+                        .then((_) => {
                             restoredCount++
-                        } else {
-                            restoreErrCount++
-                            console.error(`RESTORE error: ${key}:${ttl} => ${err}`)
-                        }
-                    })
-                    .then(() => {
-                        message = `\x1b[${message.length}D${keyCount} keys`
-                        process.stdout.write(message)
-                    })
-                    .catch() // Dummy catch to satisfy TS compiler
+                        }).catch((err) => {
+                            if(ignore_dupes && err.code === 'BUSYKEY') {
+                                restoredCount++
+                            } else {
+                                restoreErrCount++
+                                console.error(`RESTORE error: ${key}:${ttl} => ${err}`)
+                            }
+                        })
+                        .then(() => {
+                            message = `\x1b[${message.length}D${keyCount} keys`
+                            process.stdout.write(message)
+                        })
+                        .catch() // Dummy catch to satisfy TS compiler
+                    }
                 }).catch((err) => {
                     ttlErrCount++
                     console.error(`PTTL error: ${key} => ${err}`)
